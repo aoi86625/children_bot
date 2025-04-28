@@ -1,15 +1,24 @@
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
-from linebot.models import MessageEvent, TextMessage, TextSendMessage
+from linebot.models import MessageEvent, TextMessage, TextSendMessage, ImageMessage
 import os
+import io
+import requests
+from google.cloud import vision
 
+# Flaskアプリ
 app = Flask(__name__)
 
+# LINEの環境変数
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv('LINE_CHANNEL_ACCESS_TOKEN')
 LINE_CHANNEL_SECRET = os.getenv('LINE_CHANNEL_SECRET')
 
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
+
+# Vision APIクライアント（認証キー指定）
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'sql-book-379215-1b6cb645d532.json'
+vision_client = vision.ImageAnnotatorClient()
 
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -25,13 +34,35 @@ def callback():
     return 'OK'
 
 @handler.add(MessageEvent, message=TextMessage)
-def handle_message(event):
+def handle_text_message(event):
+    # テキストメッセージはオウム返し
     line_bot_api.reply_message(
         event.reply_token,
         TextSendMessage(text=event.message.text)
     )
 
+@handler.add(MessageEvent, message=ImageMessage)
+def handle_image_message(event):
+    # 画像メッセージを取得
+    message_content = line_bot_api.get_message_content(event.message.id)
+    image_bytes = io.BytesIO(message_content.content)
+
+    # Vision APIに画像を送ってOCR実行
+    image = vision.Image(content=image_bytes.getvalue())
+    response = vision_client.text_detection(image=image)
+    texts = response.text_annotations
+
+    # OCRで取得したテキストを返信
+    if texts:
+        detected_text = texts[0].description.strip()
+    else:
+        detected_text = "文字が検出できませんでした。"
+
+    line_bot_api.reply_message(
+        event.reply_token,
+        TextSendMessage(text=detected_text)
+    )
+
 if __name__ == "__main__":
-    # Renderの環境変数PORTを読む（なければローカルでは5000番）
     port = int(os.environ.get('PORT', 5000))
     app.run(host="0.0.0.0", port=port)
