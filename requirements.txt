@@ -6,4 +6,5 @@ openai==0.28
 requests
 beautifulsoup4
 python-dotenv
+playwright
 
