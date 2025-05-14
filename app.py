@@ -4,7 +4,7 @@ import os
 
 app = FastAPI()
 
-@app.post("/run")
+@app.api_route("/run", methods=["GET", "POST"])
 async def run_script(request: Request):
     token = request.query_params.get("token")
     if token != os.getenv("ACCESS_TOKEN"):
