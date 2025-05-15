@@ -1,27 +1,32 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
 import subprocess
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
+TOKEN = os.getenv("EXECUTION_TOKEN")
 
-app = FastAPI()  # ← これが必要！
+app = FastAPI()
 
 @app.get("/")
 def read_root():
-    return {"message": "Server is running"}
+    return {"message": "OK"}
 
-@app.post("/run")
-@app.get("/run")
+@app.api_route("/run", methods=["GET", "POST", "HEAD"])
 async def run_script(request: Request):
     token = request.query_params.get("token")
-    if token != os.getenv("LINE_BOT_TRIGGER_TOKEN"):
-        return JSONResponse(status_code=403, content={"error": "Invalid token"})
+    if token != TOKEN:
+        return {"error": "Invalid token"}
 
-    result = subprocess.run(["python", "check_and_notify.py"], capture_output=True, text=True)
+    process = subprocess.Popen(
+        ["python", "check_and_notify.py"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
+    stdout, stderr = process.communicate()
+
     return {
-        "stdout": result.stdout,
-        "stderr": result.stderr,
-        "returncode": result.returncode
+        "stdout": stdout.decode("utf-8"),
+        "stderr": stderr.decode("utf-8"),
+        "returncode": process.returncode
     }
