@@ -1,52 +1,43 @@
-from playwright.sync_api import sync_playwright
+import asyncio
+from playwright.async_api import async_playwright
 import os
 from dotenv import load_dotenv
 
-# .envから環境変数を読み込む
 load_dotenv()
 EMAIL = os.getenv("GAMBA_EMAIL")
 PASSWORD = os.getenv("GAMBA_PASSWORD")
 
-if not EMAIL or not PASSWORD:
-    print("⚠️ .envからGAMBA_EMAIL または GAMBA_PASSWORD が取得できません。")
-    exit()
+async def main():
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=False)
+        context = await browser.new_context()
+        page = await context.new_page()
 
-LOGIN_URL = "https://gamba-osaka-academy.hacomono.jp/home"
-ANNOUNCEMENT_URL = "https://gamba-osaka-academy.hacomono.jp/announcement"
+        print("✅ サイトにアクセス中...")
+        await page.goto("https://gamba-osaka-academy.hacomono.jp/home")
 
-with sync_playwright() as p:
-    browser = p.chromium.launch(headless=False)
-    page = browser.new_page()
+        print("✅ ログインボタンをクリック...")
+        await page.click("text=ログイン")
 
-    print("✅ サイトにアクセス中...")
-    page.goto(LOGIN_URL)
+        print("✅ ログイン情報を入力中...")
+        await page.fill("input[name='mail_address']", EMAIL)
+        await page.fill("input[name='password']", PASSWORD)
 
-    page.click("text=ログイン")
-    page.wait_for_selector("input[type='email']", timeout=10000)
-    print("✅ ログイン情報を入力中...")
-    page.fill("input[type='email']", EMAIL)
-    page.fill("input[type='password']", PASSWORD)
+        print("✅ ログイン送信ボタンを押下...")
+        await page.click("div[class*='m_modal'] button[type='submit']")
 
-    print("✅ ログインボタンをクリック...")
-    page.evaluate("""
-        () => {
-            const btn = document.querySelector('button[type="submit"]');
-            if (btn) btn.click();
-        }
-    """)
+        print("⏳ 『すべてのお知らせを確認する』ボタンを待機...")
+        await page.wait_for_selector("text=すべてのお知らせを確認する", timeout=10000)
+        await page.click("text=すべてのお知らせを確認する")
 
-    print("⏳ お知らせリンクの出現を待機中...")
-    page.wait_for_timeout(5000)
+        print("✅ HTMLを保存中...")
+        await page.wait_for_timeout(2000)
+        content = await page.content()
+        with open("gamba_announcement_dynamic.html", "w", encoding="utf-8") as f:
+            f.write(content)
 
-    print("📄 お知らせページへ移動中...")
-    page.goto(ANNOUNCEMENT_URL)
-    page.wait_for_load_state("networkidle")
+        print("✅ お知らせページの動的HTML取得完了！")
+        await browser.close()
 
-    html = page.content()
-    with open("gamba_announcement_dynamic.html", "w", encoding="utf-8") as f:
-        f.write(html)
-
-    page.screenshot(path="gamba_announcement_dynamic.png")
-    print("✅ お知らせページの動的HTML取得完了！")
-
-    browser.close()
+if __name__ == "__main__":
+    asyncio.run(main())
