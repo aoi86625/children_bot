@@ -1,32 +1,24 @@
 from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
 import subprocess
 import os
-from dotenv import load_dotenv
-
-load_dotenv()
-TOKEN = os.getenv("EXECUTION_TOKEN")
 
 app = FastAPI()
 
-@app.get("/")
-def read_root():
-    return {"message": "OK"}
+@app.get("/", response_class=HTMLResponse)
+@app.head("/", response_class=HTMLResponse)  # ← HEAD対応を追加！
+async def root():
+    return "<h1>Children Bot is running.</h1>"
 
-@app.api_route("/run", methods=["GET", "POST", "HEAD"])
-async def run_script(request: Request):
+@app.post("/run")
+async def run_check_and_notify(request: Request):
     token = request.query_params.get("token")
-    if token != TOKEN:
-        return {"error": "Invalid token"}
+    if token != os.getenv("LINE_BOT_TOKEN"):
+        return {"error": "Unauthorized"}
 
-    process = subprocess.Popen(
-        ["python", "check_and_notify.py"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE
-    )
-    stdout, stderr = process.communicate()
-
+    process = subprocess.run(["python", "check_and_notify.py"], capture_output=True, text=True)
     return {
-        "stdout": stdout.decode("utf-8"),
-        "stderr": stderr.decode("utf-8"),
-        "returncode": process.returncode
+        "stdout": process.stdout,
+        "stderr": process.stderr,
+        "returncode": process.returncode,
     }
