@@ -1,28 +1,27 @@
-@app.route("/run", methods=["GET", "POST"])
-def run_script():
-    token = request.args.get("token")
-    if token != os.getenv("ACCESS_TOKEN"):
-        return jsonify({"error": "Invalid token"}), 403
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+import subprocess
+import os
+from dotenv import load_dotenv
 
-    # ① PlaywrightスクリプトでHTMLを更新
-    result1 = subprocess.run(
-        ["python", "gamba_fetch_announcement.py"],
-        capture_output=True,
-        text=True
-    )
+load_dotenv()
 
-    # ② 差分チェック＋LINE通知
-    result2 = subprocess.run(
-        ["python", "check_and_notify.py"],
-        capture_output=True,
-        text=True
-    )
+app = FastAPI()  # ← これが必要！
 
-    return jsonify({
-        "stdout_fetch": result1.stdout,
-        "stderr_fetch": result1.stderr,
-        "stdout_notify": result2.stdout,
-        "stderr_notify": result2.stderr,
-        "returncode_fetch": result1.returncode,
-        "returncode_notify": result2.returncode,
-    })
+@app.get("/")
+def read_root():
+    return {"message": "Server is running"}
+
+@app.post("/run")
+@app.get("/run")
+async def run_script(request: Request):
+    token = request.query_params.get("token")
+    if token != os.getenv("LINE_BOT_TRIGGER_TOKEN"):
+        return JSONResponse(status_code=403, content={"error": "Invalid token"})
+
+    result = subprocess.run(["python", "check_and_notify.py"], capture_output=True, text=True)
+    return {
+        "stdout": result.stdout,
+        "stderr": result.stderr,
+        "returncode": result.returncode
+    }
