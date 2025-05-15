@@ -4,20 +4,17 @@ import os
 
 app = FastAPI()
 
-@app.api_route("/run", methods=["GET", "POST"])
+@app.api_route("/run", methods=["GET", "POST", "HEAD"])
 async def run_script(request: Request):
-    # 環境変数からトークンを取得
     token = request.query_params.get("token")
     if token != os.getenv("ACCESS_TOKEN"):
         return {"error": "Unauthorized"}
 
-    # check_and_notify.py を実行
-    result = subprocess.run(
-        ["python", "check_and_notify.py"],
-        capture_output=True
-    )
+    if request.method == "HEAD":
+        # 処理をスキップして「正常だよ」とだけ返す
+        return {"status": "OK (HEAD method)"}
 
-    # 実行結果をJSONで返す
+    result = subprocess.run(["python", "check_and_notify.py"], capture_output=True)
     return {
         "stdout": result.stdout.decode(),
         "stderr": result.stderr.decode(),
